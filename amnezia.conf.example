@@ -1,0 +1,27 @@
+[Interface]
+Address = 10.8.1.X/32
+DNS = 1.1.1.1, 1.0.0.1
+PrivateKey = <YOUR_PRIVATE_KEY>
+Jc = 6
+Jmin = 10
+Jmax = 50
+S1 = 59
+S2 = 39
+S3 = 24
+S4 = 9
+H1 = <H1_VALUE>
+H2 = <H2_VALUE>
+H3 = <H3_VALUE>
+H4 = <H4_VALUE>
+I1 = <I1_VALUE>
+I2 =
+I3 =
+I4 =
+I5 =
+
+[Peer]
+PublicKey = <SERVER_PUBLIC_KEY>
+PresharedKey = <PRESHARED_KEY>
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = <SERVER_HOST>:<SERVER_PORT>
+PersistentKeepalive = 25

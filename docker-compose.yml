@@ -1,0 +1,25 @@
+services:
+  awg-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: awg-proxy
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      net.ipv4.conf.all.src_valid_mark: "1"
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - "${PROXY_PORT:-1080}:${PROXY_PORT:-1080}/tcp"
+    volumes:
+      - ./amnezia.conf:/config/amnezia.conf:ro
+    environment:
+      WG_QUICK_USERSPACE_IMPLEMENTATION: amneziawg-go
+      LOG_LEVEL: info
+      PROXY_LISTEN_HOST: 0.0.0.0
+      PROXY_PORT: ${PROXY_PORT:-1080}
+      # PROXY_USER: proxy
+      # PROXY_PASSWORD: change-me
+      # MICROSOCKS_WHITELIST: 192.168.1.0/24
+    restart: unless-stopped

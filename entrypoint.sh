@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+AWG_CONFIG_FILE="${AWG_CONFIG_FILE:-/config/amnezia.conf}"
+WG_QUICK_USERSPACE_IMPLEMENTATION="${WG_QUICK_USERSPACE_IMPLEMENTATION:-amneziawg-go}"
+LOG_LEVEL="${LOG_LEVEL:-info}"
+PROXY_LISTEN_HOST="${PROXY_LISTEN_HOST:-0.0.0.0}"
+PROXY_PORT="${PROXY_PORT:-1080}"
+PROXY_USER="${PROXY_USER:-}"
+PROXY_PASSWORD="${PROXY_PASSWORD:-}"
+MICROSOCKS_BIND_ADDRESS="${MICROSOCKS_BIND_ADDRESS:-}"
+MICROSOCKS_WHITELIST="${MICROSOCKS_WHITELIST:-}"
+MICROSOCKS_AUTH_ONCE="${MICROSOCKS_AUTH_ONCE:-0}"
+MICROSOCKS_QUIET="${MICROSOCKS_QUIET:-0}"
+MICROSOCKS_OPTS="${MICROSOCKS_OPTS:-}"
+
+interface_name=""
+proxy_pid=""
+runtime_awg_config=""
+
+prepare_runtime_config() {
+    runtime_awg_config="/tmp/${interface_name}.conf"
+
+    awk '
+        /^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=[[:space:]]*$/ { next }
+        { print }
+    ' "$AWG_CONFIG_FILE" > "$runtime_awg_config"
+
+    chmod 600 "$runtime_awg_config"
+}
+
+cleanup() {
+    local exit_code=$?
+
+    trap - EXIT INT TERM
+
+    if [[ -n "$proxy_pid" ]]; then
+        kill "$proxy_pid" 2>/dev/null || true
+        wait "$proxy_pid" 2>/dev/null || true
+    fi
+
+    if [[ -n "$interface_name" ]]; then
+        awg-quick down "$runtime_awg_config" >/dev/null 2>&1 || true
+    fi
+
+    if [[ -n "$runtime_awg_config" ]]; then
+        rm -f "$runtime_awg_config"
+    fi
+
+    exit "$exit_code"
+}
+
+trap cleanup EXIT INT TERM
+
+if [[ "$EUID" -ne 0 ]]; then
+    echo "entrypoint.sh: container must run as root" >&2
+    exit 1
+fi
+
+if [[ ! -f "$AWG_CONFIG_FILE" ]]; then
+    echo "entrypoint.sh: missing AWG config at $AWG_CONFIG_FILE" >&2
+    exit 1
+fi
+
+if [[ "${AWG_CONFIG_FILE##*.}" != "conf" ]]; then
+    echo "entrypoint.sh: config file must end with .conf so awg-quick can derive the interface name" >&2
+    exit 1
+fi
+
+if [[ ! -c /dev/net/tun ]]; then
+    echo "entrypoint.sh: /dev/net/tun is missing; run the container with NET_ADMIN and map /dev/net/tun" >&2
+    exit 1
+fi
+
+interface_name="$(basename "$AWG_CONFIG_FILE" .conf)"
+
+export WG_QUICK_USERSPACE_IMPLEMENTATION
+export LOG_LEVEL
+
+prepare_runtime_config
+
+echo "[+] Bringing up AmneziaWG interface: $interface_name"
+awg-quick up "$runtime_awg_config"
+
+echo "[+] Current interface state"
+awg show "$interface_name" || true
+
+if ! awg show "$interface_name" allowed-ips | grep -Eq '(^|[[:space:]])(0\.0\.0\.0/0|::/0)([[:space:]]|$)'; then
+    echo "[!] AWG config does not contain a default route in AllowedIPs. Only listed subnets will use the tunnel." >&2
+fi
+
+proxy_args=( -i "$PROXY_LISTEN_HOST" -p "$PROXY_PORT" )
+
+if [[ -n "$PROXY_USER" || -n "$PROXY_PASSWORD" ]]; then
+    if [[ -z "$PROXY_USER" || -z "$PROXY_PASSWORD" ]]; then
+        echo "entrypoint.sh: PROXY_USER and PROXY_PASSWORD must be set together" >&2
+        exit 1
+    fi
+
+    proxy_args+=( -u "$PROXY_USER" -P "$PROXY_PASSWORD" )
+fi
+
+if [[ -n "$MICROSOCKS_BIND_ADDRESS" ]]; then
+    proxy_args+=( -b "$MICROSOCKS_BIND_ADDRESS" )
+fi
+
+if [[ -n "$MICROSOCKS_WHITELIST" ]]; then
+    proxy_args+=( -w "$MICROSOCKS_WHITELIST" )
+fi
+
+if [[ "$MICROSOCKS_AUTH_ONCE" == "1" ]]; then
+    proxy_args+=( -1 )
+fi
+
+if [[ "$MICROSOCKS_QUIET" == "1" ]]; then
+    proxy_args+=( -q )
+fi
+
+if [[ -n "$MICROSOCKS_OPTS" ]]; then
+    read -r -a extra_proxy_args <<< "$MICROSOCKS_OPTS"
+    proxy_args+=( "${extra_proxy_args[@]}" )
+fi
+
+echo "[+] Starting microsocks on ${PROXY_LISTEN_HOST}:${PROXY_PORT}"
+microsocks "${proxy_args[@]}" &
+proxy_pid=$!
+
+wait "$proxy_pid"
