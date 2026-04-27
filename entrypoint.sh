@@ -26,7 +26,7 @@ watchdog_pid=""
 runtime_awg_config=""
 
 prepare_runtime_config() {
-    runtime_awg_config="/tmp/${interface_name}.conf"
+    runtime_awg_config="/tmp/${interface_name}-runtime.conf"
 
     awk '
         /^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=[[:space:]]*$/ { next }
