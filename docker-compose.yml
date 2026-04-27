@@ -1,6 +1,6 @@
 services:
   awg-proxy:
-    image: ghcr.io/snarknn/awg-proxy:latest
+    build: .
     container_name: awg-proxy
     cap_add:
       - NET_ADMIN
@@ -10,9 +10,8 @@ services:
       - /dev/net/tun:/dev/net/tun
     ports:
       - "127.0.0.1:${PROXY_PORT:-1080}:${PROXY_PORT:-1080}/tcp"
-    volumes:
-      - ./amnezia.conf:/config/amnezia.conf:ro
     environment:
+      AWG_CONFIG: ${AWG_CONFIG:?AWG_CONFIG env is required}
       WG_QUICK_USERSPACE_IMPLEMENTATION: amneziawg-go
       LOG_LEVEL: debug
       WATCHDOG_INTERVAL: "30"
@@ -20,8 +19,4 @@ services:
       WATCHDOG_LOG_EVERY: "2"
       PROXY_LISTEN_HOST: 0.0.0.0
       PROXY_PORT: ${PROXY_PORT:-1080}
-      AWG_CONFIG: ${AWG_CONFIG}
-      # PROXY_USER: proxy
-      # PROXY_PASSWORD: change-me
-      # MICROSOCKS_WHITELIST: 192.168.1.0/24
     restart: unless-stopped

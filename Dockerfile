@@ -63,13 +63,10 @@ RUN sed -i 's/cmd sysctl -q net.ipv4.conf.all.src_valid_mark=1/cmd sysctl -q net
     /usr/local/bin/resolvconf \
     /usr/local/bin/entrypoint.sh
 
-ENV AWG_CONFIG_FILE=/config/amnezia.conf \
-    WG_QUICK_USERSPACE_IMPLEMENTATION=amneziawg-go \
+ENV WG_QUICK_USERSPACE_IMPLEMENTATION=amneziawg-go \
     LOG_LEVEL=info \
     PROXY_LISTEN_HOST=0.0.0.0 \
     PROXY_PORT=1080
-
-VOLUME ["/config"]
 
 EXPOSE 1080/tcp
 
