@@ -3,8 +3,8 @@
 set -Eeuo pipefail
 
 AWG_CONFIG="${AWG_CONFIG:-}"
-AWG_CONFIG="${AWG_CONFIG:-}"
-AWG_CONFIG_FILE="${AWG_CONFIG_FILE:-/config/amnezia.conf}"
+AWG_CONFIG="${AWG_CONFIG:?entrypoint.sh: AWG_CONFIG env is required}"
+AWG_CONFIG_FILE="/tmp/awg-env.conf"
 WG_QUICK_USERSPACE_IMPLEMENTATION="${WG_QUICK_USERSPACE_IMPLEMENTATION:-amneziawg-go}"
 LOG_LEVEL="${LOG_LEVEL:-info}"
 PROXY_LISTEN_HOST="${PROXY_LISTEN_HOST:-0.0.0.0}"
@@ -163,15 +163,9 @@ if [[ "$EUID" -ne 0 ]]; then
     exit 1
 fi
 
-if [[ -n "$AWG_CONFIG" ]]; then
-    AWG_CONFIG_FILE="/tmp/awg-env.conf"
-    printf '%s\n' "$AWG_CONFIG" > "$AWG_CONFIG_FILE"
-    chmod 600 "$AWG_CONFIG_FILE"
-    echo "[+] AWG config written from AWG_CONFIG env to $AWG_CONFIG_FILE"
-elif [[ ! -f "$AWG_CONFIG_FILE" ]]; then
-    echo "entrypoint.sh: missing AWG config at $AWG_CONFIG_FILE and AWG_CONFIG env is not set" >&2
-    exit 1
-fi
+printf '%s\n' "$AWG_CONFIG" > "$AWG_CONFIG_FILE"
+chmod 600 "$AWG_CONFIG_FILE"
+echo "[+] AWG config written from AWG_CONFIG env to $AWG_CONFIG_FILE"
 
 if [[ "${AWG_CONFIG_FILE##*.}" != "conf" ]]; then
     echo "entrypoint.sh: config file must end with .conf so awg-quick can derive the interface name" >&2
